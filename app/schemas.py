@@ -1,6 +1,39 @@
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, EmailStr, Field
+
+
+class UserBase(BaseModel):
+    email: EmailStr
+
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class UserRead(UserBase):
+    id: int
+    is_verified: bool
+    avatar_url: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class Token(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class LoginRequest(BaseModel):
+    username: EmailStr
+    password: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class ContactBase(BaseModel):
