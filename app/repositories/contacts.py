@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import date
 
 from sqlalchemy import Select, and_, select, func, cast, Date
@@ -10,13 +8,14 @@ from app.models import Contact
 
 async def list_contacts(
     session: AsyncSession,
+    user_id: int,
     first_name: str | None = None,
     last_name: str | None = None,
     email: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ):
-    stmt: Select = select(Contact)
+    stmt: Select = select(Contact).where(Contact.user_id == user_id)
     filters = []
 
     if first_name:
@@ -35,14 +34,17 @@ async def list_contacts(
     return res.scalars().all()
 
 
-async def get_contact(session: AsyncSession, contact_id: int):
-    res = await session.execute(select(Contact).where(Contact.id == contact_id))
+async def get_contact(session: AsyncSession, user_id: int, contact_id: int):
+    res = await session.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == user_id)
+    )
     return res.scalar_one_or_none()
 
 
 async def create_contact(
     session: AsyncSession,
     *,
+    user_id: int,
     first_name: str,
     last_name: str,
     email: str,
@@ -51,6 +53,7 @@ async def create_contact(
     extra_info: str | None = None,
 ):
     contact = Contact(
+        user_id=user_id,
         first_name=first_name,
         last_name=last_name,
         email=email,
@@ -100,6 +103,7 @@ async def delete_contact(session: AsyncSession, contact: Contact) -> None:
 
 async def upcoming_birthdays(
     session: AsyncSession,
+    user_id: int,
     days: int = 7,
     limit: int = 100,
     offset: int = 0,
@@ -118,8 +122,9 @@ async def upcoming_birthdays(
     stmt: Select = (
         select(Contact)
         .where(
+            Contact.user_id == user_id,
             Contact.birthday.is_not(None),
-                (same_year & cond_same) | (~same_year & cond_wrap),
+            (same_year & cond_same) | (~same_year & cond_wrap),
         )
         .limit(limit)
         .offset(offset)
