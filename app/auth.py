@@ -1,6 +1,8 @@
 """Authentication utilities and dependencies for JWT-based auth."""
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import hashlib
+from fastapi_cache.decorator import cache
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -14,6 +16,15 @@ from app.repositories.users import get_user_by_id
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+def _user_cache_key_builder(func, namespace, request, response, args, kwargs) -> str:
+    token = kwargs.get("token") or (args[0] if args else "")
+    try:
+        key = hashlib.sha256(str(token).encode("utf-8")).hexdigest()
+    except Exception:
+        key = "invalid"
+    return f"{namespace}:user:{key}"
 
 
 def hash_password(password: str) -> str:
@@ -58,7 +69,9 @@ def create_access_token(
         minutes=expires_minutes or settings.access_token_expire_minutes
     )
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
+    encoded_jwt = jwt.encode(
+        to_encode, settings.secret_key, algorithm=settings.jwt_algorithm
+    )
     return encoded_jwt
 
 
@@ -77,7 +90,9 @@ def create_refresh_token(data: dict[str, Any], expires_days: int | None = None) 
         days=expires_days or settings.refresh_token_expire_days
     )
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
+    encoded_jwt = jwt.encode(
+        to_encode, settings.secret_key, algorithm=settings.jwt_algorithm
+    )
     return encoded_jwt
 
 
@@ -94,7 +109,9 @@ def decode_token(token: str) -> dict[str, Any]:
         HTTPException: If the token is invalid or cannot be decoded.
     """
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.jwt_algorithm]
+        )
         return payload
     except JWTError as e:
         raise HTTPException(
@@ -102,22 +119,23 @@ def decode_token(token: str) -> dict[str, Any]:
         ) from e
 
 
+@cache(
+    expire=settings.access_token_expire_minutes * 60,
+    key_builder=_user_cache_key_builder,
+    namespace="auth",
+)
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: AsyncSession = Depends(get_session),
 ):
     """FastAPI dependency that returns the current authenticated user.
 
-    Args:
-        token: Bearer token extracted via OAuth2PasswordBearer.
-        session: Database session.
-
-    Returns:
-        The authenticated User instance.
-
-    Raises:
-        HTTPException: If the token is invalid or the user cannot be found.
+    Uses Redis to cache user info per access token when REDIS_URL is configured.
+    Cache TTL is aligned to the JWT access token expiry.
     """
+    # cache handled by fastapi-cache2 via decorator
+
+    # Decode token (still required to validate and to compute TTL)
     payload = decode_token(token)
     sub = payload.get("sub")
     if sub is None:
@@ -130,9 +148,23 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject"
         )
+
     user = await get_user_by_id(session, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
-    return user
+
+    snapshot = {
+        "id": user.id,
+        "email": user.email,
+        "is_verified": bool(user.is_verified),
+        "avatar_url": user.avatar_url,
+        "created_at": user.created_at.isoformat()
+        if getattr(user, "created_at", None)
+        else None,
+        "updated_at": user.updated_at.isoformat()
+        if getattr(user, "updated_at", None)
+        else None,
+    }
+    return snapshot

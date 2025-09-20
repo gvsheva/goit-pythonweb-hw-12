@@ -4,12 +4,19 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
 from testcontainers.core.container import DockerContainer
 
 
 @pytest.fixture(scope="session")
 def postgres_container():
     with PostgresContainer("postgres:16-alpine") as container:
+        yield container
+
+
+@pytest.fixture(scope="session")
+def redis_container():
+    with RedisContainer("redis:alpine") as container:
         yield container
 
 
@@ -22,6 +29,7 @@ def maildev_container():
 @pytest.fixture(scope="session")
 def test_client(
     postgres_container: PostgresContainer,
+    redis_container: RedisContainer,
     maildev_container: DockerContainer,
 ):
     import os
@@ -33,6 +41,7 @@ def test_client(
     from app import main
 
     settings.database_url = postgres_container.get_connection_url(driver="asyncpg")
+    settings.redis_url = f"redis://{redis_container.get_container_host_ip()}:{redis_container.get_exposed_port(6379)}/0"
     settings.mail_use_credentials = False
     settings.mail_server = maildev_container.get_container_host_ip()
     settings.mail_port = maildev_container.get_exposed_port(1025)
@@ -49,4 +58,5 @@ def test_client(
         bind=db.engine, expire_on_commit=False, autoflush=False, autocommit=False
     )
 
-    return TestClient(main.app)
+    with TestClient(main.app) as client:
+        yield client

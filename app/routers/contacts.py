@@ -24,9 +24,10 @@ async def create_contact_endpoint(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ) -> ContactRead:
+    uid = int(current_user["id"])
     try:
         contact = await create_contact(
-            session, user_id=current_user.id, **payload.model_dump()
+            session, user_id=uid, **payload.model_dump()
         )
     except IntegrityError:
         await session.rollback()
@@ -47,9 +48,10 @@ async def list_contacts_endpoint(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
+    uid = int(current_user["id"])
     contacts = await list_contacts(
         session,
-        user_id=current_user.id,
+        user_id=uid,
         first_name=first_name,
         last_name=last_name,
         email=email,
@@ -67,8 +69,9 @@ async def upcoming_birthdays_endpoint(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
+    uid = int(current_user["id"])
     contacts = await upcoming_birthdays(
-        session, user_id=current_user.id, days=days, limit=limit, offset=offset
+        session, user_id=uid, days=days, limit=limit, offset=offset
     )
     return [ContactRead.model_validate(c) for c in contacts]
 
@@ -79,7 +82,8 @@ async def get_contact_endpoint(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    contact = await get_contact(session, current_user.id, contact_id)
+    uid = int(current_user["id"])
+    contact = await get_contact(session, uid, contact_id)
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
@@ -94,7 +98,8 @@ async def update_contact_endpoint(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    contact = await get_contact(session, current_user.id, contact_id)
+    uid = int(current_user["id"])
+    contact = await get_contact(session, uid, contact_id)
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"
@@ -119,7 +124,8 @@ async def delete_contact_endpoint(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ) -> None:
-    contact = await get_contact(session, current_user.id, contact_id)
+    uid = int(current_user["id"])
+    contact = await get_contact(session, uid, contact_id)
     if not contact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found"

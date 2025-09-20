@@ -46,5 +46,8 @@ class Settings(BaseSettings):
         default="http://localhost:8000", alias="PUBLIC_BASE_URL"
     )
 
+    # Redis cache (optional)
+    redis_url: str | None = Field(default=None, alias="REDIS_URL")
+
 
 settings = Settings()

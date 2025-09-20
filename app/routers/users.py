@@ -10,7 +10,7 @@ from app.limiter import limiter
 from app.auth import get_current_user
 from app.config import settings
 from app.db import get_session
-from app.repositories.users import update_avatar_url
+from app.repositories.users import get_user_by_id, update_avatar_url
 from app.schemas import UserRead
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -28,6 +28,11 @@ async def update_avatar(
     current_user=Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    db_user = await get_user_by_id(session, current_user["id"])
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     cloud_url = settings.cloudinary_url
     if not cloud_url:
         raise HTTPException(
@@ -39,7 +44,7 @@ async def update_avatar(
         upload_result = cloudinary.uploader.upload(
             file.file,
             folder="avatars",
-            public_id=f"user_{current_user.id}",
+            public_id=f"user_{current_user['id']}",
             overwrite=True,
             resource_type="image",
         )
@@ -49,5 +54,5 @@ async def update_avatar(
         ) from e
 
     avatar_url = upload_result.get("secure_url")
-    user = await update_avatar_url(session, current_user, avatar_url)
+    user = await update_avatar_url(session, db_user, avatar_url)
     return UserRead.model_validate(user)
