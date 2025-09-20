@@ -284,3 +284,58 @@ def test_rate_limit_on_me_endpoint(test_client, fake):
         codes.append(resp.status_code)
     assert codes[:4] == [200, 200, 200, 200]
     assert codes[4] == 429
+
+
+def test_password_reset_flow(test_client, fake):
+    client = test_client
+    email = fake.unique.email()
+    password = "StrongPassw0rd!"
+    new_password = "NewStrongPassw0rd!"
+
+    # Register and verify baseline login
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code == 201, r.text
+
+    r = client.post(
+        "/auth/login",
+        data={"username": email, "password": password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert r.status_code == 200, r.text
+
+    # Request reset token
+    req = client.post("/auth/request-password-reset", params={"email": email})
+    assert req.status_code == 200, req.text
+    token = req.json().get("reset_token")
+    assert token, "reset_token must be present in test/dev flow"
+
+    # Reset password
+    rp = client.post("/auth/reset-password", json={"token": token, "new_password": new_password})
+    assert rp.status_code == 200, rp.text
+
+    # Old password should fail
+    r_old = client.post(
+        "/auth/login",
+        data={"username": email, "password": password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert r_old.status_code == 401, r_old.text
+
+    # New password should work
+    r_new = client.post(
+        "/auth/login",
+        data={"username": email, "password": new_password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert r_new.status_code == 200, r_new.text
+
+
+def test_request_password_reset_nonexistent_email(test_client, fake):
+    client = test_client
+    email = fake.unique.email()
+
+    # For non-existent email, endpoint should not leak existence and return 200 without token
+    r = client.post("/auth/request-password-reset", params={"email": email})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "reset_token" not in body

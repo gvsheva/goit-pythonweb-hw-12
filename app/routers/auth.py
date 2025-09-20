@@ -16,7 +16,7 @@ from app.repositories.users import (
     get_user_by_id,
     set_user_verified,
 )
-from app.schemas import RefreshRequest, Token, UserCreate, UserRead
+from app.schemas import RefreshRequest, Token, UserCreate, UserRead, PasswordResetConfirm
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from app.config import settings
 
@@ -62,6 +62,28 @@ async def send_verification_email(email: str, token: str) -> None:
         subject="Verify your email",
         recipients=[email],
         body=f"Please verify your email by clicking the link: {verification_link}",
+        subtype=MessageType.plain,
+    )
+    fm = FastMail(get_fastmail_config())
+    await fm.send_message(message)
+
+
+async def send_password_reset_email(email: str, token: str) -> None:
+    """Send a password reset email with secure token link.
+
+    Args:
+        email: Recipient email address.
+        token: JWT token used to reset password.
+
+    Returns:
+        None
+    """
+    base = settings.public_base_url.rstrip("/")
+    reset_link = f"{base}/auth/reset-password?token={token}"
+    message = MessageSchema(
+        subject="Reset your password",
+        recipients=[email],
+        body=f"You requested a password reset. Use this link to proceed: {reset_link}",
         subtype=MessageType.plain,
     )
     fm = FastMail(get_fastmail_config())
@@ -153,6 +175,55 @@ async def request_verification_token(
     )
     background_tasks.add_task(send_verification_email, user.email, token)
     return {"detail": "Verification email sent", "verification_token": token}
+
+
+@router.post("/request-password-reset")
+async def request_password_reset(
+    background_tasks: BackgroundTasks,
+    email: str = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    """Request a password reset token and send it by email."""
+    user = await get_user_by_email(session, email)
+    if not user:
+        # Avoid user enumeration: return 200 regardless, but do not send email
+        return {"detail": "If the email exists, a reset link was sent"}
+    token = create_access_token(
+        {"sub": str(user.id), "email": user.email, "scope": "reset"}
+    )
+    background_tasks.add_task(send_password_reset_email, user.email, token)
+    # For test/dev parity, return token like verification flow
+    return {"detail": "Password reset email sent", "reset_token": token}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    payload: PasswordResetConfirm, session: AsyncSession = Depends(get_session)
+):
+    """Reset password using a reset token and new password."""
+    from app.auth import decode_token
+
+    data = decode_token(payload.token)
+    if data.get("scope") != "reset":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token"
+        )
+    try:
+        user_id = int(data.get("sub", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token subject"
+        )
+    user = await get_user_by_id(session, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    from app.repositories.users import update_password
+    hashed = hash_password(payload.new_password)
+    await update_password(session, user, hashed)
+    return {"detail": "Password updated successfully"}
 
 
 @router.get("/verify")

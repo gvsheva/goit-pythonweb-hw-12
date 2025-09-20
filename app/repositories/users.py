@@ -86,3 +86,22 @@ async def update_avatar_url(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+async def update_password(
+    session: AsyncSession, user: User, hashed_password: str
+) -> User:
+    """Update user's password hash and persist.
+
+    Args:
+        session: Async SQLAlchemy session.
+        user: User instance to update.
+        hashed_password: New bcrypt hash.
+
+    Returns:
+        Updated User instance.
+    """
+    user.hashed_password = hashed_password
+    await session.commit()
+    await session.refresh(user)
+    return user
