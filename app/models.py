@@ -1,3 +1,4 @@
+"""Database models for the Contacts API."""
 from datetime import date, datetime
 
 from sqlalchemy import (
@@ -18,6 +19,7 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
+    """SQLAlchemy model for application users."""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -43,6 +45,7 @@ class User(Base):
 
 
 class Contact(Base):
+    """SQLAlchemy model for a user's contact."""
     __tablename__ = "contacts"
     __table_args__ = (
         UniqueConstraint("user_id", "email", name="uq_contacts_user_email"),

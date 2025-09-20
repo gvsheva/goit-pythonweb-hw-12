@@ -1,3 +1,4 @@
+"""FastAPI application setup with CORS, auth protection, and rate limiter."""
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded

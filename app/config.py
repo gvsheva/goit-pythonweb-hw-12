@@ -1,8 +1,10 @@
+"""Application configuration managed via pydantic-settings."""
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Application configuration loaded from environment variables via pydantic-settings."""
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

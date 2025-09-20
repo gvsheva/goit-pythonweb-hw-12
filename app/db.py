@@ -1,3 +1,4 @@
+"""Database session and engine configuration."""
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from .config import settings
@@ -12,5 +13,10 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def get_session():
+    """FastAPI dependency that provides an AsyncSession.
+
+    Yields:
+        AsyncSession: Database session bound to the configured engine.
+    """
     async with AsyncSessionLocal() as session:
         yield session
