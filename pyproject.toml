@@ -40,4 +40,5 @@ aiosqlite = "^0.20.0"
 testcontainers = "^4.8.2"
 pdbpp = "^0.11.7"
 faker = "^26.0.0"
+pytest-cov = "^7.0.0"
 
