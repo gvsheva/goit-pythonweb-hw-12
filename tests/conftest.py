@@ -1,6 +1,8 @@
 import os
 
+import pytest
 import pytest_asyncio
+from faker import Faker
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     async_sessionmaker,
@@ -9,6 +11,12 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import StaticPool
 
 from app.models import Base
+
+@pytest.fixture(scope="session")
+def fake():
+    faker = Faker()
+    faker.seed_instance(12345)
+    return faker
 
 
 @pytest_asyncio.fixture(scope="session")

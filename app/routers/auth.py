@@ -152,7 +152,7 @@ async def request_verification_token(
         {"sub": str(user.id), "email": user.email, "scope": "verify"}
     )
     background_tasks.add_task(send_verification_email, user.email, token)
-    return {"detail": "Verification email sent"}
+    return {"detail": "Verification email sent", "verification_token": token}
 
 
 @router.get("/verify")

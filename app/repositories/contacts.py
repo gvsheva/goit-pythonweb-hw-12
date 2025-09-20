@@ -1,7 +1,7 @@
 """Repository functions for Contact entity."""
 from datetime import date
 
-from sqlalchemy import Select, and_, select, func, cast, Date
+from sqlalchemy import Select, and_, select, func, cast, Date, Integer, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Contact
@@ -185,23 +185,31 @@ async def upcoming_birthdays(
         List of Contact objects with birthdays within the window.
     """
     today = func.current_date()
-    end_date = cast(func.current_date() + func.make_interval(days=days), Date)
+    # SQLAlchemy func doesn't support keyword args for PostgreSQL make_interval; use positional:
+    # make_interval(years, months, weeks, days, hours, mins, secs)
+    window_end = cast(func.current_date() + func.make_interval(0, 0, 0, days, 0, 0, 0), Date)
 
-    bday_mmdd = func.to_char(Contact.birthday, "MM-DD")
-    start_mmdd = func.to_char(today, "MM-DD")
-    end_mmdd = func.to_char(end_date, "MM-DD")
-
-    same_year = func.to_char(end_date, "YYYY") == func.to_char(today, "YYYY")
-    cond_same = (bday_mmdd >= start_mmdd) & (bday_mmdd <= end_mmdd)
-    cond_wrap = (bday_mmdd >= start_mmdd) | (bday_mmdd <= end_mmdd)
+    # Build the next upcoming birthday date for the current year,
+    # adding 1 year when the month-day has already passed today.
+    bday_mmdd_lt_today = func.to_char(Contact.birthday, "MM-DD") < func.to_char(today, "MM-DD")
+    next_year = cast(func.date_part("year", today), Integer) + case(
+        (bday_mmdd_lt_today, 1), else_=0
+    )
+    next_birthday_date = func.make_date(
+        next_year,
+        cast(func.date_part("month", Contact.birthday), Integer),
+        cast(func.date_part("day", Contact.birthday), Integer),
+    )
 
     stmt: Select = (
         select(Contact)
         .where(
             Contact.user_id == user_id,
             Contact.birthday.is_not(None),
-            (same_year & cond_same) | (~same_year & cond_wrap),
+            next_birthday_date >= today,
+            next_birthday_date <= window_end,
         )
+        .order_by(next_birthday_date)
         .limit(limit)
         .offset(offset)
     )

@@ -26,6 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/health", tags=["health"])
+async def healthcheck():
+    return {"status": "ok"}
+
 app.include_router(auth_router)
 app.include_router(users_router, dependencies=[Depends(get_current_user)])
 app.include_router(contacts_router, dependencies=[Depends(get_current_user)])

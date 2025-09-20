@@ -11,11 +11,11 @@ from app.repositories.users import (
 
 
 @pytest.mark.asyncio
-async def test_create_and_get_user(session, mocker):
+async def test_create_and_get_user(session, mocker, fake):
     commit_spy = mocker.spy(session, "commit")
 
-    email = "user1@example.com"
-    user = await create_user(session, email=email, hashed_password=hash_password("secret123"))
+    email = fake.unique.email()
+    user = await create_user(session, email=email, hashed_password=hash_password(fake.password(length=12)))
     assert user.id > 0
     assert user.email == email
     assert commit_spy.call_count == 1  # create_user commits
@@ -30,10 +30,10 @@ async def test_create_and_get_user(session, mocker):
 
 
 @pytest.mark.asyncio
-async def test_set_user_verified_and_avatar(session, mocker):
+async def test_set_user_verified_and_avatar(session, mocker, fake):
     commit_spy = mocker.spy(session, "commit")
 
-    user = await create_user(session, email="u2@example.com", hashed_password=hash_password("password123"))
+    user = await create_user(session, email=fake.unique.email(), hashed_password=hash_password(fake.password(length=12)))
     assert user.is_verified is False
     assert commit_spy.call_count == 1  # create_user commits
 
@@ -41,6 +41,7 @@ async def test_set_user_verified_and_avatar(session, mocker):
     assert user.is_verified is True
     assert commit_spy.call_count == 2  # set_user_verified commits
 
-    user = await update_avatar_url(session, user, "https://cdn.example.com/avatar.png")
-    assert user.avatar_url == "https://cdn.example.com/avatar.png"
+    new_avatar_url = fake.image_url()
+    user = await update_avatar_url(session, user, new_avatar_url)
+    assert user.avatar_url == new_avatar_url
     assert commit_spy.call_count == 3  # update_avatar_url commits

@@ -14,12 +14,12 @@ from app.repositories.contacts import (
 
 
 @pytest.mark.asyncio
-async def test_create_list_get_update_delete_contacts(session, mocker):
+async def test_create_list_get_update_delete_contacts(session, mocker, fake):
     commit_spy = mocker.spy(session, "commit")
 
     # Create user
-    user = await create_user(session, email="owner@example.com", hashed_password=hash_password("passw0rd!"))
-    other = await create_user(session, email="other@example.com", hashed_password=hash_password("passw0rd!"))
+    user = await create_user(session, email=fake.unique.email(), hashed_password=hash_password(fake.password(length=12)))
+    other = await create_user(session, email=fake.unique.email(), hashed_password=hash_password(fake.password(length=12)))
     assert commit_spy.call_count == 2  # two users created
 
     # Create contacts for both users
@@ -28,8 +28,8 @@ async def test_create_list_get_update_delete_contacts(session, mocker):
         user_id=user.id,
         first_name="John",
         last_name="Doe",
-        email="john@example.com",
-        phone="12345",
+        email=fake.unique.email(),
+        phone=fake.phone_number(),
         birthday=None,
         extra_info=None,
     )
@@ -42,8 +42,8 @@ async def test_create_list_get_update_delete_contacts(session, mocker):
         user_id=other.id,
         first_name="John",
         last_name="Smith",
-        email="john@example.com",
-        phone="00000",
+        email=c1.email,
+        phone=fake.phone_number(),
         birthday=None,
         extra_info=None,
     )
@@ -80,14 +80,14 @@ async def test_create_list_get_update_delete_contacts(session, mocker):
 
 
 @pytest.mark.asyncio
-async def test_upcoming_birthdays_postgres_only(session):
+async def test_upcoming_birthdays_postgres_only(session, fake):
     # Skip if not using PostgreSQL (function relies on PostgreSQL-specific SQL)
     engine = session.bind
     engine_url = getattr(engine, "url", None)
     if engine_url is None or "postgresql" not in str(engine_url):
         pytest.skip("upcoming_birthdays requires PostgreSQL")
 
-    user = await create_user(session, email="bday@example.com", hashed_password=hash_password("secret123"))
+    user = await create_user(session, email=fake.unique.email(), hashed_password=hash_password(fake.password(length=12)))
 
     today = date.today()
     in_3 = today + timedelta(days=3)

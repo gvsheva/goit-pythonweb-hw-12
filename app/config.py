@@ -1,5 +1,5 @@
 """Application configuration managed via pydantic-settings."""
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     mail_server: str = Field(default="localhost", alias="MAIL_SERVER")
     mail_port: int = Field(default=1025, alias="MAIL_PORT")
     mail_username: str | None = Field(default=None, alias="MAIL_USERNAME")
-    mail_password: str | None = Field(default=None, alias="MAIL_PASSWORD")
+    mail_password: SecretStr | None = Field(default=None, alias="MAIL_PASSWORD")
     mail_from: str = Field(default="no-reply@example.com", alias="MAIL_FROM")
     mail_starttls: bool = Field(default=False, alias="MAIL_STARTTLS")
     mail_ssl_tls: bool = Field(default=False, alias="MAIL_SSL_TLS")
