@@ -1,3 +1,4 @@
 /pyrightconfig.json
 *.pyc
 /.env
+/docs/_build/
