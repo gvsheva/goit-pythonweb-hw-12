@@ -1,3 +1,4 @@
+"""Repository functions for Contact entity."""
 from datetime import date
 
 from sqlalchemy import Select, and_, select, func, cast, Date
@@ -15,6 +16,20 @@ async def list_contacts(
     limit: int = 100,
     offset: int = 0,
 ):
+    """List user's contacts with optional filters and pagination.
+
+    Args:
+        session: Async SQLAlchemy session.
+        user_id: Owner user ID.
+        first_name: Optional case-insensitive filter by first name (substring).
+        last_name: Optional case-insensitive filter by last name (substring).
+        email: Optional case-insensitive filter by email (substring).
+        limit: Max number of records to return.
+        offset: Number of records to skip (for pagination).
+
+    Returns:
+        List of Contact objects.
+    """
     stmt: Select = select(Contact).where(Contact.user_id == user_id)
     filters = []
 
@@ -35,6 +50,16 @@ async def list_contacts(
 
 
 async def get_contact(session: AsyncSession, user_id: int, contact_id: int):
+    """Fetch a single contact by ID owned by the given user.
+
+    Args:
+        session: Async SQLAlchemy session.
+        user_id: Owner user ID.
+        contact_id: Contact primary ID.
+
+    Returns:
+        Contact if found, otherwise None.
+    """
     res = await session.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == user_id)
     )
@@ -52,6 +77,21 @@ async def create_contact(
     birthday: date | None = None,
     extra_info: str | None = None,
 ):
+    """Create and persist a new contact.
+
+    Args:
+        session: Async SQLAlchemy session.
+        user_id: Owner user ID.
+        first_name: Contact first name.
+        last_name: Contact last name.
+        email: Contact email.
+        phone: Contact phone number.
+        birthday: Optional date of birth.
+        extra_info: Optional extra information.
+
+    Returns:
+        Newly created Contact.
+    """
     contact = Contact(
         user_id=user_id,
         first_name=first_name,
@@ -78,6 +118,21 @@ async def update_contact(
     birthday: date | None = None,
     extra_info: str | None = None,
 ):
+    """Update fields of an existing contact and commit the changes.
+
+    Args:
+        session: Async SQLAlchemy session.
+        contact: Contact instance to update.
+        first_name: Optional new first name.
+        last_name: Optional new last name.
+        email: Optional new email.
+        phone: Optional new phone number.
+        birthday: Optional new birthday.
+        extra_info: Optional new extra info.
+
+    Returns:
+        Updated Contact instance.
+    """
     if first_name is not None:
         contact.first_name = first_name
     if last_name is not None:
@@ -97,6 +152,15 @@ async def update_contact(
 
 
 async def delete_contact(session: AsyncSession, contact: Contact) -> None:
+    """Delete the given contact.
+
+    Args:
+        session: Async SQLAlchemy session.
+        contact: Contact to remove.
+
+    Returns:
+        None
+    """
     await session.delete(contact)
     await session.commit()
 
@@ -108,6 +172,18 @@ async def upcoming_birthdays(
     limit: int = 100,
     offset: int = 0,
 ):
+    """Return contacts with birthdays within the next N days using SQL-side filtering.
+
+    Args:
+        session: Async SQLAlchemy session.
+        user_id: Owner user ID.
+        days: Window size in days to check ahead.
+        limit: Max number of records to return.
+        offset: Number of records to skip.
+
+    Returns:
+        List of Contact objects with birthdays within the window.
+    """
     today = func.current_date()
     end_date = cast(func.current_date() + func.make_interval(days=days), Date)
 
