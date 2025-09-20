@@ -1,3 +1,4 @@
+"""User profile endpoints."""
 import time
 
 import cloudinary

@@ -1,3 +1,4 @@
+"""Authentication endpoints and email verification helpers."""
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
@@ -22,6 +23,11 @@ from app.config import settings
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 def get_fastmail_config() -> ConnectionConfig:
+    """Build and return a FastMail ConnectionConfig from application settings.
+
+    Returns:
+        ConnectionConfig instance ready to be used with FastMail.
+    """
     use_credentials = (
         settings.mail_use_credentials
         if settings.mail_use_credentials is not None
@@ -41,6 +47,15 @@ def get_fastmail_config() -> ConnectionConfig:
 
 
 async def send_verification_email(email: str, token: str) -> None:
+    """Send an email with a verification link to the given address.
+
+    Args:
+        email: Recipient email address.
+        token: JWT token used to verify email ownership.
+
+    Returns:
+        None
+    """
     base = settings.public_base_url.rstrip("/")
     verification_link = f"{base}/auth/verify?token={token}"
     message = MessageSchema(
