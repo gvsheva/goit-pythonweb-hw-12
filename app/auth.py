@@ -159,6 +159,7 @@ async def get_current_user(
         "id": user.id,
         "email": user.email,
         "is_verified": bool(user.is_verified),
+        "role": getattr(user, "role", "user"),
         "avatar_url": user.avatar_url,
         "created_at": user.created_at.isoformat()
         if getattr(user, "created_at", None)

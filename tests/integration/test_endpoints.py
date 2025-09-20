@@ -1,4 +1,9 @@
 from datetime import date, timedelta
+from io import BytesIO
+import asyncio
+
+from sqlalchemy import update
+from app.models import User
 
 
 def auth_headers(access_token: str) -> dict[str, str]:
@@ -263,6 +268,8 @@ def test_refresh_token_flow(test_client, fake):
 
 
 def test_rate_limit_on_me_endpoint(test_client, fake):
+    from app.limiter import limiter
+
     client = test_client
     email = fake.unique.email()
     password = "StrongPass2!"
@@ -279,11 +286,12 @@ def test_rate_limit_on_me_endpoint(test_client, fake):
     access = r.json()["access_token"]
 
     codes = []
-    for _ in range(6):
+    for _ in range(51):
         resp = client.get("/api/users/me", headers=auth_headers(access))
         codes.append(resp.status_code)
-    assert codes[:4] == [200, 200, 200, 200]
-    assert codes[4] == 429
+    assert codes[:49] == [200]*49
+    assert codes[50] == 429
+    limiter.reset()
 
 
 def test_password_reset_flow(test_client, fake):
@@ -339,3 +347,73 @@ def test_request_password_reset_nonexistent_email(test_client, fake):
     assert r.status_code == 200, r.text
     body = r.json()
     assert "reset_token" not in body
+
+
+def test_update_avatar_forbidden_for_non_admin(test_client, fake, mocker):
+    client = test_client
+    email = fake.unique.email()
+    password = "StrongPassw0rd!"
+
+    # Register and login as regular user
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code == 201, r.text
+
+    r = client.post(
+        "/auth/login",
+        data={"username": email, "password": password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert r.status_code == 200, r.text
+    access = r.json()["access_token"]
+
+    # Attempt to upload avatar should be forbidden (role=user)
+    files = {"file": ("avatar.png", BytesIO(b"fake-png"), "image/png")}
+    resp = client.put("/api/users/me/avatar", headers=auth_headers(access), files=files)
+    assert resp.status_code == 403, resp.text
+
+
+def test_update_avatar_allowed_for_admin(test_client, fake, mocker):
+    from app.config import settings
+    from app.db import AsyncSessionLocal
+
+    client = test_client
+    email = fake.unique.email()
+    password = "StrongPassw0rd!"
+
+    # Register and login
+    r = client.post("/auth/register", json={"email": email, "password": password})
+    assert r.status_code == 201, r.text
+
+    r = client.post(
+        "/auth/login",
+        data={"username": email, "password": password},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert r.status_code == 200, r.text
+    access = r.json()["access_token"]
+
+    # Get current user id
+    me = client.get("/api/users/me", headers=auth_headers(access))
+    assert me.status_code == 200, me.text
+    user_id = me.json()["id"]
+
+    # Promote to admin directly in DB
+    async def promote(uid: int):
+        async with AsyncSessionLocal() as s:
+            await s.execute(update(User).where(User.id == uid).values(role="admin"))
+            await s.commit()
+
+    asyncio.run(promote(user_id))
+
+    # Configure cloudinary and mock upload call
+    settings.cloudinary_url = "cloudinary://key:secret@cloud"
+    mocker.patch(
+        "cloudinary.uploader.upload",
+        return_value={"secure_url": "https://cdn.example.com/avatar.png"},
+    )
+
+    # Upload avatar should now succeed
+    files = {"file": ("avatar.png", BytesIO(b"fake-png"), "image/png")}
+    resp = client.put("/api/users/me/avatar", headers=auth_headers(access), files=files)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["avatar_url"] == "https://cdn.example.com/avatar.png"

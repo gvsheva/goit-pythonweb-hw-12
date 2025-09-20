@@ -14,6 +14,7 @@ class UserCreate(UserBase):
 class UserRead(UserBase):
     id: int
     is_verified: bool
+    role: str
     avatar_url: str | None = None
     created_at: datetime
     updated_at: datetime

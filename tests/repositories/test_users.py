@@ -18,6 +18,7 @@ async def test_create_and_get_user(session, mocker, fake):
     user = await create_user(session, email=email, hashed_password=hash_password(fake.password(length=12)))
     assert user.id > 0
     assert user.email == email
+    assert user.role == "user"
     assert commit_spy.call_count == 1  # create_user commits
 
     by_email = await get_user_by_email(session, email)

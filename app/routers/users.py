@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 @router.get("/me", response_model=UserRead)
-@limiter.limit("5/minute")
+@limiter.limit("50/minute")
 async def get_me(request: Request, current_user=Depends(get_current_user)):
     return UserRead.model_validate(current_user)
 
@@ -28,6 +28,11 @@ async def update_avatar(
     current_user=Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update their avatar",
+        )
     db_user = await get_user_by_id(session, current_user["id"])
     if not db_user:
         raise HTTPException(
